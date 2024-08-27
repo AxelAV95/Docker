@@ -1,40 +1,30 @@
-# Usa una imagen base de PHP con Apache
-FROM php:7.4-apache
+# Usa una imagen base con PHP 8.2
+FROM php:8.2-fpm
 
-# Instala las dependencias necesarias
-RUN apt-get update && apt-get install -y \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    git \
-    curl \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
-# Habilita el módulo de Apache para Laravel
-RUN a2enmod rewrite
-
-# Establece el directorio de trabajo en el contenedor
-WORKDIR /var/www/html
-
-# Copia el archivo composer.json y composer.lock
-COPY composer.json composer.lock ./
+# Instala las extensiones necesarias
+RUN apt-get update && \
+    apt-get install -y libpng-dev libjpeg-dev libfreetype6-dev libzip-dev unzip && \
+    docker-php-ext-configure gd --with-freetype --with-jpeg && \
+    docker-php-ext-install gd zip
 
 # Instala Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Instala las dependencias de la aplicación
+# Copia el archivo de configuración de Composer
+COPY composer.json /var/www/html/
+COPY composer.lock /var/www/html/
+
+# Establece el directorio de trabajo
+WORKDIR /var/www/html
+
+# Instala las dependencias de Composer
 RUN composer install --no-scripts --no-autoloader
 
-# Copia el resto del código de la aplicación
-COPY . .
+# Copia el código de la aplicación
+COPY . /var/www/html/
 
-# Genera el autoloader
-RUN composer dump-autoload --optimize
+# Expone el puerto 9000
+EXPOSE 9000
 
-# Cambia el propietario de los archivos para que Apache pueda acceder a ellos
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-
-# Expone el puerto en el que correrá la aplicación
-EXPOSE 80
+# Inicia PHP-FPM
+CMD ["php-fpm"]
